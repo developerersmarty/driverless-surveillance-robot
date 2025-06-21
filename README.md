@@ -1,5 +1,4 @@
 # Driverless Surveillance Vehicle 🚗🔍
-
 An open-source project to build a smart, driverless surveillance vehicle using IoT, sensors, and computer vision.
 
 ## 🚀 Features

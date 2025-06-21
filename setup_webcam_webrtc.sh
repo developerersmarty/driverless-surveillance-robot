@@ -90,7 +90,7 @@ async def publish_stream():
 
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            "http://165.232.190.4:8889/cam1/whip",
+            "http://your_server_ip:8889/cam1/whip",
             data=pc.localDescription.sdp,
             headers={"Content-Type": "application/sdp"},
         ) as resp:
