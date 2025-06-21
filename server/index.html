@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Robot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script defer src="http://165.232.190.4/robot_view/js/reader.js"></script>
+    <style>
+        /* Custom styles for futuristic look, joystick, and speed bar */
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            margin: 0;
+            overflow: hidden;
+        }
+        .joystick-container {
+            position: absolute;
+            bottom: 100px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+            z-index: 10;
+        }
+        .joystick-container:hover {
+            opacity: 1;
+        }
+        .joystick {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+        .joystick-knob {
+            width: 40px;
+            height: 40px;
+            background: #4f46e5;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 0;
+        }
+        #robotVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .indicators-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            z-index: 10;
+        }
+        .indicator {
+            background: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(4px);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+        }
+        .indicator i {
+            font-size: 28px;
+            width: 28px;
+            height: 28px;
+            text-align: center;
+        }
+        .speed-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 1rem;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+        }
+        .speed-fill {
+            position: absolute;
+            left: 0;
+            height: 100%;
+            background: #4f46e5;
+            transition: width 0.2s;
+        }
+        .speed-label {
+            color: white;
+            font-size: 0.75rem;
+            text-align: center;
+            margin-left: 0.5rem;
+        }
+        #message {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            text-align: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            pointer-events: none;
+            padding: 20px;
+            box-sizing: border-box;
+            text-shadow: 0 0 5px black;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Video and Joystick Section -->
+    <div class="video-container">
+        <!-- Video Player -->
+        <video id="robotVideo" autoplay playsinline muted></video>
+        <div id="message"></div>
+
+        <!-- Indicators Section -->
+        <div class="indicators-container">
+            <div class="indicator" id="cameraIndicator">
+                <i class="fa-solid fa-video text-blue-400" id="cameraIcon"></i>
+                <p class="text-white text-sm font-semibold" id="cameraStatus">On</p>
+            </div>
+            <div class="indicator">
+                <p class="text-white text-sm font-semibold" id="obstacleDistance">0.0 cm</p>
+            </div>
+            <div class="indicator" id="lightIndicator">
+                <i class="fa-solid fa-lightbulb text-yellow-400" id="lightIcon"></i>
+                <p class="text-white text-sm font-semibold" id="lightStatus">Off</p>
+            </div>
+            <div class="indicator" id="robotPowerIndicator">
+                <i class="fa-solid fa-power-off text-red-400" id="powerIcon"></i>
+                <p class="text-white text-sm font-semibold" id="robotPower">On</p>
+            </div>
+        </div>
+
+        <!-- Robot Movement Joystick (Left) -->
+        <div class="joystick-container left-4" id="robotJoystick">
+            <div class="joystick">
+                <div class="joystick-knob"></div>
+            </div>
+            <p class="text-white text-sm mt-2 text-center">Robot Movement</p>
+        </div>
+
+        <!-- Camera Movement Joystick (Right) -->
+        <div class="joystick-container right-4" id="cameraJoystick">
+            <div class="joystick">
+                <div class="joystick-knob"></div>
+            </div>
+            <p class="text-white text-sm mt-2 text-center">Camera Control</p>
+        </div>
+
+        <!-- Robot Speed Bar -->
+        <div class="speed-container">
+            <div class="speed-bar" id="speedBar">
+                <div class="speed-fill" id="speedFill" style="width: 100%"></div>
+            </div>
+            <div class="speed-label">Speed</div>
+        </div>
+    </div>
+
+    <script>
+        // WebRTC Video
+        var yourServerUrl = 'http://165.232.190.4'; // Replace with your server URL'
+        var yourServerIP = '165.232.190.4'; // Replace with your server IP
+        const video = document.getElementById('robotVideo');
+        const message = document.getElementById('message');
+
+        const setMessage = (str) => {
+            message.innerText = str;
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            new MediaMTXWebRTCReader({
+                url: yourServerUrl+':8889/cam1/whep',
+                onError: (err) => {
+                    console.error('WebRTC error:', err);
+                    setMessage(err);
+                },
+                onTrack: (evt) => {
+                    console.log('WebRTC track received');
+                    setMessage('');
+                    video.srcObject = evt.streams[0];
+                },
+            });
+        });
+
+        // WebSocket Setup
+        let controlWs, distanceWs;
+
+        function connectWebSockets() {
+            // Control WebSocket
+            controlWs = new WebSocket('ws://'+'yourServerIP'+':9000/control');
+            controlWs.onopen = () => {
+                console.log('Control WebSocket connected');
+            };
+            controlWs.onclose = () => {
+                console.log('Control WebSocket disconnected. Reconnecting...');
+                setTimeout(connectWebSockets, 5000);
+            };
+            controlWs.onerror = (err) => {
+                console.error('Control WebSocket error:', err);
+            };
+            controlWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Control received:', data);
+                } catch (e) {
+                    console.error('Invalid control data:', event.data);
+                }
+            };
+
+            // Distance WebSocket
+            distanceWs = new WebSocket('ws://'+'yourServerIP'+':9000/distance');
+            distanceWs.onopen = () => {
+                console.log('Distance WebSocket connected');
+            };
+            distanceWs.onclose = () => {
+                console.log('Distance WebSocket disconnected. Reconnecting...');
+                setTimeout(connectWebSockets, 5000);
+            };
+            distanceWs.onerror = (err) => {
+                console.error('Distance WebSocket error:', err);
+            };
+            distanceWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'distance') {
+                        document.getElementById('obstacleDistance').textContent = `${data.value.toFixed(1)} cm`;
+                    }
+                } catch (e) {
+                    console.error('Invalid distance data:', event.data);
+                }
+            };
+        }
+
+        connectWebSockets();
+
+        // Send WebSocket Command
+        function sendCommand(action, value) {
+            if (controlWs && controlWs.readyState === WebSocket.OPEN) {
+                const message = { action, value };
+                controlWs.send(JSON.stringify(message));
+                console.log('Sent:', message);
+            } else {
+                console.warn('Control WebSocket not connected');
+            }
+        }
+
+
+        // Joystick Functionality
+        function setupJoystick(joystickId, onMove) {
+            const joystick = document.getElementById(joystickId);
+            const knob = joystick.querySelector('.joystick-knob');
+            let isDragging = false;
+            let centerX, centerY, maxDistance;
+
+            function init() {
+                const rect = joystick.querySelector('.joystick').getBoundingClientRect();
+                centerX = rect.width / 2;
+                centerY = rect.height / 2;
+                maxDistance = rect.width / 2 - knob.offsetWidth / 2;
+            }
+
+            function moveKnob(clientX, clientY) {
+                const rect = joystick.getBoundingClientRect();
+                const dx = clientX - (rect.left + centerX);
+                const dy = clientY - (rect.top + centerY);
+                const absDx = Math.abs(dx);
+                const absDy = Math.abs(dy);
+                let moveX = 0, moveY = 0;
+
+                if (absDx > absDy) {
+                    moveX = Math.max(-maxDistance, Math.min(maxDistance, dx));
+                    moveY = 0;
+                } else if (absDy > absDx) {
+                    moveX = 0;
+                    moveY = Math.max(-maxDistance, Math.min(maxDistance, dy));
+                }
+
+                knob.style.left = `${centerX + moveX}px`;
+                knob.style.top = `${centerY + moveY}px`;
+                const normalizedX = moveX / maxDistance;
+                const normalizedY = moveY / maxDistance;
+                onMove(normalizedX, normalizedY);
+            }
+
+            function resetKnob() {
+                knob.style.left = `${centerX}px`;
+                knob.style.top = `${centerY}px`;
+                onMove(0, 0);
+            }
+
+            joystick.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                init();
+                moveKnob(e.clientX, e.clientY);
+            });
+
+            joystick.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    moveKnob(e.clientX, e.clientY);
+                }
+            });
+
+            joystick.addEventListener('mouseup', () => {
+                isDragging = false;
+                resetKnob();
+            });
+
+            joystick.addEventListener('mouseleave', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    resetKnob();
+                }
+            });
+
+            joystick.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                init();
+                const touch = e.touches[0];
+                moveKnob(touch.clientX, touch.clientY);
+            });
+
+            joystick.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (isDragging) {
+                    const touch = e.touches[0];
+                    moveKnob(touch.clientX, touch.clientY);
+                }
+            });
+
+            joystick.addEventListener('touchend', () => {
+                isDragging = false;
+                resetKnob();
+            });
+        }
+
+        // Robot Joystick (Motor Control)
+        let currentRobotAction = 'stop';
+        setupJoystick('robotJoystick', (x, y) => {
+            let action = 'stop';
+            if (x > 0.5) action = 'right';
+            else if (x < -0.5) action = 'left';
+            else if (y > 0.5) action = 'backward';
+            else if (y < -0.5) action = 'forward';
+
+            if (action !== currentRobotAction) {
+                currentRobotAction = action;
+                sendCommand(action, speedLevel);
+                console.log(`Robot Movement - Action: ${action}, Speed: ${speedLevel}`);
+            }
+        });
+
+        // Camera Joystick (Camera Control)
+        let currentCameraAction = null;
+        setupJoystick('cameraJoystick', (x, y) => {
+            let action = null;
+            if (x > 0.5) action = 'cam_right';
+            else if (x < -0.5) action = 'cam_left';
+            else if (y > 0.5) action = 'cam_down';
+            else if (y < -0.5) action = 'cam_up';
+
+            if (action !== currentCameraAction) {
+                currentCameraAction = action;
+                if (action) {
+                    sendCommand(action, null);
+                    console.log(`Camera Movement - Action: ${action}`);
+                }
+            }
+        });
+
+
+        // Speed Slider
+        const speedBar = document.getElementById('speedBar');
+        const speedFill = document.getElementById('speedFill');
+        let isDraggingSpeed = false;
+        let speedLevel = 100;
+
+        speedBar.addEventListener('mousedown', (e) => {
+            isDraggingSpeed = true;
+            updateSpeed(e);
+        });
+
+        speedBar.addEventListener('mousemove', (e) => {
+            if (isDraggingSpeed) {
+                updateSpeed(e);
+            }
+        });
+
+        speedBar.addEventListener('mouseup', () => {
+            isDraggingSpeed = false;
+            if (currentRobotAction !== 'stop') {
+                sendCommand(currentRobotAction, speedLevel);
+            }
+        });
+
+        speedBar.addEventListener('mouseleave', () => {
+            isDraggingSpeed = false;
+            if (currentRobotAction !== 'stop') {
+                sendCommand(currentRobotAction, speedLevel);
+            }
+        });
+
+        speedBar.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDraggingSpeed = true;
+            updateSpeed(e.touches[0]);
+        });
+
+        speedBar.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (isDraggingSpeed) {
+                updateSpeed(e.touches[0]);
+            }
+        });
+
+        speedBar.addEventListener('touchend', () => {
+            isDraggingSpeed = false;
+            if (currentRobotAction !== 'stop') {
+                sendCommand(currentRobotAction, speedLevel);
+            }
+        });
+
+        function updateSpeed(event) {
+            const rect = speedBar.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const width = rect.width;
+            speedLevel = Math.max(0, Math.min(100, (x / width) * 100));
+            speedFill.style.width = `${speedLevel}%`;
+            console.log(`Speed Level: ${speedLevel.toFixed(0)}%`);
+        }
+
+        // Indicator Toggles
+        let cameraOn = true;
+        const cameraIcon = document.getElementById('cameraIcon');
+        document.getElementById('cameraIndicator').addEventListener('click', () => {
+            cameraOn = !cameraOn;
+            document.getElementById('cameraStatus').textContent = cameraOn ? 'On' : 'Off';
+            cameraIcon.className = cameraOn ? 'fa-solid fa-video text-blue-400' : 'fa-solid fa-video text-red-400';
+            if (cameraOn) {
+                video.play();
+            } else {
+                video.pause();
+            }
+            console.log(`Camera: ${cameraOn ? 'On' : 'Off'}`);
+        });
+
+        let lightOn = false;
+        const lightIcon = document.getElementById('lightIcon');
+        document.getElementById('lightIndicator').addEventListener('click', () => {
+            lightOn = !lightOn;
+            document.getElementById('lightStatus').textContent = lightOn ? 'On' : 'Off';
+            lightIcon.className = lightOn ? 'fa-solid fa-lightbulb text-yellow-400' : 'fa-solid fa-lightbulb text-red>
+            console.log(`Light: ${lightOn ? 'On' : 'Off'}`);
+        });
+
+        let robotOn = true;
+        const powerIcon = document.getElementById('powerIcon');
+        document.getElementById('robotPowerIndicator').addEventListener('click', () => {
+            robotOn = !robotOn;
+            document.getElementById('robotPower').textContent = robotOn ? 'On' : 'Off';
+            powerIcon.className = robotOn ? 'fa-solid fa-power-off text-red-400' : 'fa-solid fa-power-off text-red-40>
+            if (!robotOn) {
+                sendCommand('stop', 0);
+                currentRobotAction = 'stop';
+            }
+            console.log(`Robot Power: ${robotOn ? 'On' : 'Off'}`);
+        });
+    </script>
+</body>
+</html>

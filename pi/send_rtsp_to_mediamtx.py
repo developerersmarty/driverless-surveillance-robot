@@ -10,12 +10,23 @@ from aiortc import (
 from aiortc.contrib.media import MediaPlayer  # Utility to play RTSP streams
 from aiohttp import ClientSession             # HTTP client to make WHIP requests
 
+# === Static Configuration ===
+CAMERA_IP = "192.168.0.111"  # Replace with your camera's IP address
+RTSP_USER = "pradip"  # Replace with your RTSP/ONVIF username
+RTSP_PASS = "52335233"  # Replace with your RTSP/ONVIF password
+RTSP_PORT = 554 # Default RTSP port, change if needed
+RTSP_STREAM = "stream1" # RTSP stream name, adjust based on your camera configuration (i.e Stream1 (HD), Stream2 (SD), etc.)
+
+SERVER_IP = "Your Server IP"  # Replace with your server's IP address
+SERVER_PORT = 8889 # Port for WebRCT communication on the server
+MediaMTX_Endpoint = "cam1" # Endpoint for MediaMTX, adjust if necessary
+
 # Define a custom video track class that reads frames from an RTSP stream
 class RTSPVideoTrack(VideoStreamTrack):
     def __init__(self):
         super().__init__()
         # 🔗 Step 1: Define your RTSP stream source (replace with your camera details)
-        self.rtsp_url = "rtsp://pradip:52335233@192.168.0.111:554/stream2" #640px
+        self.rtsp_url = "rtsp://{RTSP_USER}:{RTSP_PASS}@{CAMERA_IP}:{RTSP_PORT}/{RTSP_STREAM}"
         # 🎥 Step 2: Use MediaPlayer to pull video from RTSP using UDP
         # You can adjust these options to tune for latency and performance
         self.player = MediaPlayer(
@@ -43,7 +54,7 @@ class RTSPVideoTrack(VideoStreamTrack):
 async def publish_stream():
     # 🌍 Step 3: Set up WebRTC connection with public STUN server to traverse NAT/firewalls
     config = RTCConfiguration(
-        iceServers=[RTCIceServer(urls=["stun:stun.l.google.com:19302"])]
+        iceServers=[RTCIceServer(urls=["stun:stun.l.google.com:19302"])] # Using Google's public STUN server
     )
     pc = RTCPeerConnection(config)  # Create WebRTC PeerConnection
 
@@ -57,7 +68,7 @@ async def publish_stream():
     # 🌐 Step 6: Send SDP offer to MediaMTX using WHIP protocol (via HTTP POST)
     async with ClientSession() as session:
         async with session.post(
-            "http://your_server_ip:8889/cam1/whip",         # WHIP endpoint for MediaMTX
+            "http://{SERVER_IP}:{SERVER_PORT}/{MediaMTX_Endpoint}/whip",         # WHIP endpoint for MediaMTX
             data=pc.localDescription.sdp,                  # Send our offer SDP
             headers={"Content-Type": "application/sdp"}    # Required content-type for WHIP
         ) as resp:
